@@ -1,56 +1,89 @@
 import streamlit as st
 import pandas as pd
 import os
-import shutil
 
-SENHA = "Vou_ajudar@26"
+st.set_page_config(page_title="Plantões UTI", layout="wide")
 
-st.title("Escala de Plantão Médico – Março 2026")
+# ============================
+# 0) SENHA ÚNICA PARA TODOS
+# ============================
+SENHA = "1234"  # <<< TROQUE AQUI
 
-senha_digitada = st.text_input("Digite a senha:", type="password")
+senha_digitada = st.sidebar.text_input("Senha de acesso", type="password")
 
 if senha_digitada != SENHA:
+    st.warning("Digite a senha correta para acessar.")
     st.stop()
 
-csv_temp = "/tmp/plantoes.csv"
+# ============================
+# 1) Carrega lista oficial de médicos
+# ============================
+medicos_df = pd.read_csv("medicos.csv")
+nomes_medicos = medicos_df["nome"].tolist()
 
-# Copia o CSV inicial para a pasta temporária se ainda não existir
-if not os.path.exists(csv_temp):
-    shutil.copy("plantoes.csv", csv_temp)
+# ============================
+# 2) Carrega o CSV de plantões
+# ============================
+CSV_PATH = "/tmp/plantoes.csv"
 
-# Lê o CSV e garante que tudo é string
-df = pd.read_csv(csv_temp, dtype=str).fillna("")
+if not os.path.exists(CSV_PATH):
+    df_original = pd.read_csv("plantoes.csv")
+    df_original.to_csv(CSV_PATH, index=False)
 
-# Garante que as colunas de candidatos existem
-for col in ["candidato1", "candidato2", "candidato3", "candidato4", "candidato5"]:
-    if col not in df.columns:
-        df[col] = ""
-    df[col] = df[col].astype(str).fillna("")
+df = pd.read_csv(CSV_PATH)
 
-st.subheader("Candidaturas aos Plantões")
+# ============================
+# 3) Configura dropdowns
+# ============================
+colunas_candidatos = ["candidato1", "candidato2", "candidato3", "candidato4", "candidato5"]
 
-# Tabela editável
-tabela_editavel = st.data_editor(df, key="editor")
+column_config = {
+    col: st.column_config.SelectboxColumn(options=nomes_medicos)
+    for col in colunas_candidatos
+}
 
+# ============================
+# 4) Travar células já preenchidas
+# ============================
+disabled_cols = {}
+
+for col in colunas_candidatos:
+    disabled_cols[col] = df[col].notna() & (df[col] != "")
+
+# ============================
+# 5) Editor com dropdown
+# ============================
+st.title("📋 Inscrição de Plantões - UTI")
+
+df_editado = st.data_editor(
+    df,
+    column_config=column_config,
+    disabled=disabled_cols,
+    key="editor",
+    use_container_width=True
+)
+
+# ============================
+# 6) Impedir duplicidade na mesma linha
+# ============================
+for idx, row in df_editado.iterrows():
+    candidatos = [row[col] for col in colunas_candidatos]
+    candidatos_limpos = [c for c in candidatos if c not in ["", None] and pd.notna(c)]
+
+    if len(candidatos_limpos) != len(set(candidatos_limpos)):
+        st.error(f"⚠️ Linha {idx+1}: o mesmo médico não pode aparecer duas vezes.")
+        st.stop()
+
+# ============================
+# 7) Botão de salvar
+# ============================
 if st.button("Salvar alterações"):
-    df_original = pd.read_csv(csv_temp, dtype=str).fillna("")
+    df_editado.to_csv(CSV_PATH, index=False)
+    st.success("✔️ Salvo com sucesso! As escolhas agora estão travadas.")
+    st.experimental_rerun()
 
-    # Travamento de células preenchidas
-    for linha in df.index:
-        for coluna in ["candidato1", "candidato2", "candidato3", "candidato4", "candidato5"]:
-            valor_antigo = df_original.loc[linha, coluna]
-            valor_novo = tabela_editavel.loc[linha, coluna]
-
-            if valor_antigo != "" and valor_novo != valor_antigo:
-                tabela_editavel.loc[linha, coluna] = valor_antigo
-
-    tabela_editavel.to_csv(csv_temp, index=False)
-
-    st.success("Salvo com sucesso! Células preenchidas foram protegidas.")
-
-    # Recarrega o arquivo salvo e mostra SOMENTE a tabela travada
-    df_travado = pd.read_csv(csv_temp, dtype=str).fillna("")
-    st.subheader("Tabela atualizada (travada)")
-    st.dataframe(df_travado)
-
-    st.stop()
+# ============================
+# 8) Exibe tabela final travada
+# ============================
+st.subheader("📌 Situação atual dos plantões")
+st.dataframe(df_editado, use_container_width=True)
