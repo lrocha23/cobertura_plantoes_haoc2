@@ -46,20 +46,10 @@ column_config = {
     for col in colunas_candidatos
 }
 
-# ============================
-# 4) Verifica se tabela já está travada
-# ============================
-travado = st.session_state.get("travado", False)
-
 st.title("📋 Inscrição de Plantões - UTI")
 
-if travado:
-    st.success("✔️ A tabela está travada após o salvamento.")
-    st.dataframe(df, use_container_width=True)
-    st.stop()
-
 # ============================
-# 5) Editor com dropdown
+# 4) Editor com dropdown
 # ============================
 df_editado = st.data_editor(
     df,
@@ -69,7 +59,7 @@ df_editado = st.data_editor(
 )
 
 # ============================
-# 6) Impedir duplicidade na mesma linha
+# 5) Impedir duplicidade na mesma linha
 # ============================
 for idx, row in df_editado.iterrows():
     candidatos = [row[col] for col in colunas_candidatos]
@@ -80,16 +70,12 @@ for idx, row in df_editado.iterrows():
         st.stop()
 
 # ============================
-# 7) Botão de salvar
+# 6) Botão de salvar
 # ============================
 if st.button("Salvar alterações"):
     df_editado.to_csv(CSV_PATH, index=False)
-    st.session_state["travado"] = True
-    st.success("✔️ Salvo com sucesso! A tabela agora está travada.")
-    st.stop()
+    st.success("✔️ Salvo com sucesso!")
 
-# ============================
-# 8) Exibe tabela editável (antes de salvar)
-# ============================
-st.subheader("📌 Situação atual dos plantões")
-st.dataframe(df_editado, use_container_width=True)
+st.subheader("📌 Situação atual dos plantões (arquivo salvo)")
+df_salvo = pd.read_csv(CSV_PATH)
+st.dataframe(df_salvo, use_container_width=True)
