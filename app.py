@@ -29,27 +29,28 @@ for col in ["candidato1", "candidato2", "candidato3", "candidato4", "candidato5"
 
 st.subheader("Candidaturas aos Plantões")
 
-tabela_editada = st.data_editor(df)
+# Tabela editável
+tabela_editavel = st.data_editor(df, key="editor")
 
 if st.button("Salvar alterações"):
-    # Recarrega o arquivo salvo antes de comparar
     df_original = pd.read_csv(csv_temp, dtype=str).fillna("")
 
     # Travamento de células preenchidas
     for linha in df.index:
         for coluna in ["candidato1", "candidato2", "candidato3", "candidato4", "candidato5"]:
             valor_antigo = df_original.loc[linha, coluna]
-            valor_novo = tabela_editada.loc[linha, coluna]
+            valor_novo = tabela_editavel.loc[linha, coluna]
 
-            # Se já tinha nome, mantém o antigo
             if valor_antigo != "" and valor_novo != valor_antigo:
-                tabela_editada.loc[linha, coluna] = valor_antigo
+                tabela_editavel.loc[linha, coluna] = valor_antigo
 
-    # Salva o arquivo atualizado
-    tabela_editada.to_csv(csv_temp, index=False)
-
-    # Recarrega o arquivo salvo para refletir o travamento imediatamente
-    df_atualizado = pd.read_csv(csv_temp, dtype=str).fillna("")
-    st.dataframe(df_atualizado)
+    tabela_editavel.to_csv(csv_temp, index=False)
 
     st.success("Salvo com sucesso! Células preenchidas foram protegidas.")
+
+    # Recarrega o arquivo salvo e mostra SOMENTE a tabela travada
+    df_travado = pd.read_csv(csv_temp, dtype=str).fillna("")
+    st.subheader("Tabela atualizada (travada)")
+    st.dataframe(df_travado)
+
+    st.stop()
