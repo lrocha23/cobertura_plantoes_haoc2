@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import random
 
-st.title("Cálculo Inclusivo da Escala – App Privado")
+st.title("Cálculo Inclusivo da Escala – App Privado (versão sem IDs)")
 
 # ============================
 # 1) Upload dos arquivos
@@ -40,23 +40,25 @@ colunas_candidatos = ["candidato1","candidato2","candidato3","candidato4","candi
 
 def get_candidatos(row):
     return [
-        (row[c + "_id"], row[c]) 
-        for c in colunas_candidatos 
-        if isinstance(row[c], str) and row[c] != ""
+        nome
+        for nome in [row[c] for c in colunas_candidatos]
+        if isinstance(nome, str) and nome.strip() != ""
     ]
 
-# Dicionários: id → plantoes
-plant_ano = dict(zip(historico_ano.id, historico_ano.plantoes))
-plant_mes = dict(zip(historico_mes.id, historico_mes.plantoes))
+# Dicionários: nome → plantoes
+plant_ano = dict(zip(historico_ano.nome, historico_ano.plantoes))
+plant_mes = dict(zip(historico_mes.nome, historico_mes.plantoes))
 
 # ============================
 # 3) Função de escore
 # ============================
-def calcular_escore(id_medico, ganhos_rodada):
-    return (plant_ano.get(id_medico, 0) * 1.5) + \
-           (plant_mes.get(id_medico, 0) * 3) + \
-           (ganhos_rodada.get(id_medico, 0) * 2) + \
-           random.random()
+def calcular_escore(nome_medico, ganhos_rodada):
+    return (
+        plant_ano.get(nome_medico, 0) * 1.5 +
+        plant_mes.get(nome_medico, 0) * 3 +
+        ganhos_rodada.get(nome_medico, 0) * 2 +
+        random.random()
+    )
 
 # ============================
 # 4) Calcular recomendados
@@ -74,21 +76,17 @@ for idx, row in df.iterrows():
         continue
 
     if len(candidatos) == 1:
-        recomendados[idx] = candidatos[0]
-        id_unico = candidatos[0][0]
-        ganhos_rodada[id_unico] = ganhos_rodada.get(id_unico, 0) + 1
+        escolhido = candidatos[0]
+        recomendados[idx] = escolhido
+        ganhos_rodada[escolhido] = ganhos_rodada.get(escolhido, 0) + 1
         continue
 
-    scores = {
-        (id_medico, nome): calcular_escore(id_medico, ganhos_rodada)
-        for (id_medico, nome) in candidatos
-    }
+    scores = {nome: calcular_escore(nome, ganhos_rodada) for nome in candidatos}
 
     escolhido = min(scores, key=scores.get)
     recomendados[idx] = escolhido
 
-    id_escolhido = escolhido[0]
-    ganhos_rodada[id_escolhido] = ganhos_rodada.get(id_escolhido, 0) + 1
+    ganhos_rodada[escolhido] = ganhos_rodada.get(escolhido, 0) + 1
 
 # ============================
 # 5) Interface de escolha manual
@@ -105,26 +103,21 @@ for idx, row in df.iterrows():
 
     if not candidatos:
         st.info("Nenhum candidato inscrito.")
-        escolhas_finais.append((idx, None, None))
+        escolhas_finais.append((idx, None))
         continue
 
-    st.write(f"Recomendado pelo algoritmo: **{recomendado[1]}**")
+    st.write(f"Recomendado pelo algoritmo: **{recomendado}**")
 
-    nomes = [nome for (_, nome) in candidatos]
-    ids = [id_medico for (id_medico, _) in candidatos]
-
-    index_recomendado = nomes.index(recomendado[1])
+    index_recomendado = candidatos.index(recomendado)
 
     escolha_nome = st.radio(
         "Escolha final:",
-        nomes,
+        candidatos,
         index=index_recomendado,
         key=f"escolha_{idx}"
     )
 
-    escolha_id = ids[nomes.index(escolha_nome)]
-
-    escolhas_finais.append((idx, escolha_id, escolha_nome))
+    escolhas_finais.append((idx, escolha_nome))
 
 # ============================
 # 6) Gerar escala final
@@ -132,8 +125,7 @@ for idx, row in df.iterrows():
 st.header("Gerar escala final")
 
 if st.button("Baixar escala final"):
-    for idx, id_escolhido, nome_escolhido in escolhas_finais:
-        df.loc[idx, "plantonista_id"] = id_escolhido
+    for idx, nome_escolhido in escolhas_finais:
         df.loc[idx, "plantonista"] = nome_escolhido
 
     csv_final = df.to_csv(index=False)
